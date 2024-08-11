@@ -1,0 +1,41 @@
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v2
+
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.8'
+
+    - name: Install dependencies
+      run: |
+        sudo apt update
+        sudo apt install -y python3-pip
+        pip install -U -r requirements.txt
+
+    - name: Run benchmark
+      id: benchmark
+      run: |
+        result=$(python3 benchmark.py)
+        echo "mrps=$(echo $result | cut -d ' ' -f 1)" >> $GITHUB_ENV
+        echo "wr=$(echo $result | cut -d ' ' -f 2)" >> $GITHUB_ENV
+
+    - name: Show results
+      run: |
+        echo "Mean Reward per Step: ${{ env.mrps }}"
+        echo "Win Ratio: ${{ env.wr }}"
+
+    - name: Send results
+      env:
+        GITLAB_USER_LOGIN: ${{ secrets.GITLAB_USER_LOGIN }}
+        CI_JOB_URL: ${{ github.event.workflow_run.html_url }}
+      run: |
+        curl --insecure -d "username=$GITLAB_USER_LOGIN&mean_reward_per_step=${{ env.mrps }}&win_ratio=${{ env.wr }}&url=$CI_JOB_URL" https://joan.th-deg.de/ranking-dashboard
